@@ -24,7 +24,15 @@ export class TwilioSignatureMiddleware implements NestMiddleware {
         }
 
         const signature = req.headers['x-twilio-signature'] as string;
-        const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+
+        // When behind ngrok (or any reverse proxy), Twilio signs with the public URL.
+        // Use X-Forwarded-* headers to reconstruct the actual URL Twilio called.
+        const proto =
+            (req.headers['x-forwarded-proto'] as string) || req.protocol;
+        const host =
+            (req.headers['x-forwarded-host'] as string) || req.get('host') || '';
+        const url = `${proto}://${host}${req.originalUrl}`;
+
         const params = req.body as Record<string, string>;
 
         const isValid = twilio.validateRequest(
@@ -35,7 +43,7 @@ export class TwilioSignatureMiddleware implements NestMiddleware {
         );
 
         if (!isValid) {
-            this.logger.warn(`Invalid Twilio signature from ${req.ip}`);
+            this.logger.warn(`Invalid Twilio signature from ${req.ip} (url: ${url})`);
             res.status(403).json({ message: 'Forbidden: Invalid Twilio signature' });
             return;
         }

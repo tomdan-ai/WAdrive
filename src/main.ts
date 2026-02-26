@@ -7,6 +7,10 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
 
+  // Trust reverse proxy (ngrok in dev, load balancer in prod)
+  // so Express reads X-Forwarded-Proto / X-Forwarded-Host correctly
+  app.getHttpAdapter().getInstance().set('trust proxy', true);
+
   // Twilio sends URL-encoded form bodies
   app.use(express.urlencoded({ extended: true }));
 
