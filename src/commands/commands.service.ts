@@ -5,6 +5,7 @@ import { MediaService } from '../media/media.service';
 import { UsersService } from '../users/users.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { AiService } from '../ai/ai.service';
+import { PaymentsService } from '../payments/payments.service';
 
 const HELP_MESSAGE = `
 🤖 *WADrive Commands*
@@ -28,14 +29,15 @@ Simply forward any file, photo, video, voice note, or document to this chat.
 `.trim();
 
 const UPGRADE_MESSAGE = `
-✨ *WADrive Pro — 20GB for ₦1,500/month*
+✨ *WADrive Pro — 10GB for ₦2,000/month*
 
-Get 40× more storage, plus:
-• Priority backup
-• Smart search (coming soon)
+Get the storage of 20 free accounts, plus:
+• Priority backup & retrieval
+• Smart AI Search
+• Priority support
 
 To upgrade, visit: https://wadrive.app/upgrade
-(Payments coming soon inside WhatsApp!)
+(Secure payment via Paystack)
 `.trim();
 
 @Injectable()
@@ -45,6 +47,7 @@ export class CommandsService {
         private readonly usersService: UsersService,
         private readonly messaging: MessagingService,
         private readonly aiService: AiService,
+        private readonly paymentsService: PaymentsService,
     ) { }
 
     async handle(user: User, text: string): Promise<void> {
@@ -81,7 +84,7 @@ export class CommandsService {
         } else if (normalized === 'delete account') {
             await this.handleDeleteRequest(user);
         } else if (normalized === 'upgrade') {
-            await this.messaging.sendText(`whatsapp:${user.phone}`, UPGRADE_MESSAGE);
+            await this.handleUpgrade(user);
         } else if (normalized === 'help') {
             await this.messaging.sendText(`whatsapp:${user.phone}`, HELP_MESSAGE);
         } else {
@@ -166,10 +169,18 @@ export class CommandsService {
         const barFilled = Math.round(pct / 10);
         const bar = '█'.repeat(barFilled) + '░'.repeat(10 - barFilled);
 
-        let msg = `📦 *Your WADrive Storage*\n\nUsed: ${usedMb} MB of ${limitMb} MB\n[${bar}] ${pct}%\nRemaining: ${((limit - used) / 1024 / 1024).toFixed(1)} MB`;
+        const planName = user.isPro ? '🚀 *Pro Tier*' : '☁️ *Free Tier*';
 
-        if (pct >= 90) {
-            msg += `\n\n⚠️ You're almost full! Reply *upgrade* to get 20GB for ₦1,500/month.`;
+        let msg = `📊 *Your Storage Dashboard*\n\n` +
+            `Plan: ${planName}\n` +
+            `Used: ${usedMb} MB of ${limitMb} MB\n` +
+            `[${bar}] ${pct}%\n` +
+            `Remaining: ${((limit - used) / 1024 / 1024).toFixed(1)} MB`;
+
+        if (!user.isPro) {
+            if (pct >= 80) {
+                msg += `\n\n⚠️ *Running low!* Upgrade to Pro for 10GB and never worry about space again. Reply *upgrade* to learn more.`;
+            }
         }
 
         await this.messaging.sendText(`whatsapp:${user.phone}`, msg);
@@ -225,5 +236,29 @@ export class CommandsService {
             phone,
             `🗑️ Done. All your files and account data have been permanently deleted.\n\nSorry to see you go. If you ever want to come back, just say hi! 👋`,
         );
+    }
+
+    private async handleUpgrade(user: User): Promise<void> {
+        try {
+            // Paystack requires an email. We'll generate a dummy one from phone.
+            const email = `${user.phone}@wadrive.app`;
+
+            const authUrl = await this.paymentsService.initializeTransaction(
+                email,
+                2000, // ₦2,000
+                { phone: user.phone, userId: user.id }
+            );
+
+            const msg = `✨ *WADrive Pro — 10GB for ₦2,000/month*\n\n` +
+                `Your personal upgrade link is ready:\n${authUrl}\n\n` +
+                `Secure payment powered by *Paystack*. Once paid, your account will be upgraded within seconds! 🚀`;
+
+            await this.messaging.sendText(`whatsapp:${user.phone}`, msg);
+        } catch (error) {
+            await this.messaging.sendText(
+                `whatsapp:${user.phone}`,
+                `❌ *Something went wrong.* \n\nI couldn't generate your payment link right now. Please try again or type *help* for support.`
+            );
+        }
     }
 }
