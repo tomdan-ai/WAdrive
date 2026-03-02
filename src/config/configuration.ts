@@ -21,4 +21,5 @@ export default () => ({
         ),
         rateLimitPerHour: parseInt(process.env.RATE_LIMIT_PER_HOUR ?? '20', 10),
     },
+    geminiApiKey: process.env.GEMINI_API_KEY,
 });
