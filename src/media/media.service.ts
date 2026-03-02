@@ -10,6 +10,7 @@ import { User } from '../database/entities/user.entity';
 import { B2Service } from './b2.service';
 import { DownloaderService } from './downloader.service';
 import { UsersService } from '../users/users.service';
+import { AiService } from '../ai/ai.service';
 
 /** Map Twilio ContentType to our media type categories */
 function resolveMediaType(mimeType: string): MediaType {
@@ -51,6 +52,7 @@ export class MediaService {
         private readonly b2: B2Service,
         private readonly downloader: DownloaderService,
         private readonly usersService: UsersService,
+        private readonly aiService: AiService,
         private readonly config: ConfigService,
     ) {
         this.accountSid = config.get<string>('twilio.accountSid') as string;
@@ -97,6 +99,15 @@ export class MediaService {
         // Checksum
         const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
 
+        // AI Tagging (Images and PDFs only for now)
+        let aiResult: { tags: string[]; caption: string; extractedText?: string } = {
+            tags: [],
+            caption: '',
+        };
+        if (mimeType.startsWith('image/') || mimeType === 'application/pdf') {
+            aiResult = await this.aiService.generateTagsAndCaption(buffer, mimeType);
+        }
+
         // Upload to B2
         await this.b2.upload(b2Key, buffer, mimeType);
 
@@ -109,6 +120,9 @@ export class MediaService {
             originalFilename: filename,
             b2Key,
             checksum,
+            tags: aiResult.tags,
+            caption: aiResult.caption,
+            extractedText: (aiResult as any).extractedText,
         });
         await this.mediaRepo.save(mediaFile);
 
@@ -120,8 +134,10 @@ export class MediaService {
         const usedMbNow = (Number(user.storageUsed) / 1024 / 1024).toFixed(1);
         const limitMb = (storageLimit / 1024 / 1024).toFixed(0);
 
+        const captionText = aiResult.caption ? `\n✨ *${aiResult.caption}*` : '';
+
         return (
-            `☁️ *Backed up securely!*\n` +
+            `☁️ *Backed up securely!*${captionText}\n` +
             `📄 ${filename} (${fileSizeKb} KB)\n` +
             `📦 Storage: ${usedMbNow} MB / ${limitMb} MB`
         );
