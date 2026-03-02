@@ -86,7 +86,7 @@ export class MediaService {
             return (
                 `⚠️ Storage full! You've used ${usedMb} MB of ${limitMb} MB.\n\n` +
                 `To continue backing up files, you'll need to upgrade your plan.\n` +
-                `Reply *upgrade* to learn about our Pro plan (20GB for ₦1,500/month).`
+                `Reply *upgrade* to learn about our Pro plan (10GB for ₦2,000/month).`
             );
         }
 
