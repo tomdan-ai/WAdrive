@@ -5,9 +5,10 @@ import { MediaService } from './media.service';
 import { B2Service } from './b2.service';
 import { DownloaderService } from './downloader.service';
 import { UsersModule } from '../users/users.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([MediaFile]), UsersModule],
+    imports: [TypeOrmModule.forFeature([MediaFile]), UsersModule, AiModule],
     providers: [MediaService, B2Service, DownloaderService],
     exports: [MediaService],
 })
