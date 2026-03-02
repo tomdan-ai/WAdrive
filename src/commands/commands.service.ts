@@ -4,6 +4,7 @@ import { MediaType } from '../database/entities/media-file.entity';
 import { MediaService } from '../media/media.service';
 import { UsersService } from '../users/users.service';
 import { MessagingService } from '../messaging/messaging.service';
+import { AiService } from '../ai/ai.service';
 
 const HELP_MESSAGE = `
 🤖 *WADrive Commands*
@@ -43,6 +44,7 @@ export class CommandsService {
         private readonly mediaService: MediaService,
         private readonly usersService: UsersService,
         private readonly messaging: MessagingService,
+        private readonly aiService: AiService,
     ) { }
 
     async handle(user: User, text: string): Promise<void> {
@@ -83,11 +85,72 @@ export class CommandsService {
         } else if (normalized === 'help') {
             await this.messaging.sendText(`whatsapp:${user.phone}`, HELP_MESSAGE);
         } else {
-            // Unknown command — gentle nudge
+            // Use AI to detect intent
+            const aiIntent = await this.aiService.detectIntent(text);
+
+            if (aiIntent.intent === 'retrieve') {
+                await this.handleAiRetrieve(user, aiIntent.filters);
+            } else if (aiIntent.intent === 'storage') {
+                await this.handleStorage(user);
+            } else if (aiIntent.intent === 'help') {
+                await this.messaging.sendText(`whatsapp:${user.phone}`, HELP_MESSAGE);
+            } else {
+                // Unknown command — gentle nudge
+                await this.messaging.sendText(
+                    `whatsapp:${user.phone}`,
+                    `I didn't understand that. Type *help* to see available commands, or forward a file to back it up! 😊`,
+                );
+            }
+        }
+    }
+
+    // ─── AI Handlers ─────────────────────────────────────────────────────────
+
+    private async handleAiRetrieve(user: User, filters: any): Promise<void> {
+        // Basic AI-powered search
+        const qb = this.mediaService['mediaRepo'] // Accessing private repo for custom query
+            .createQueryBuilder('f')
+            .where('f.user_id = :userId', { userId: user.id });
+
+        if (filters.tag) {
+            qb.andWhere(':tag = ANY(f.tags) OR f.caption ILIKE :tagSearch OR f.extractedText ILIKE :tagSearch', {
+                tag: filters.tag,
+                tagSearch: `%${filters.tag}%`
+            });
+        }
+
+        if (filters.mediaType) {
+            qb.andWhere('f.mediaType = :mediaType', { mediaType: filters.mediaType });
+        }
+
+        // Simple date filter logic - Gemini identifies relative dates
+        if (filters.dateRange) {
+            // Note: In a production app, we'd use a better date parser for Gemini's output
+            // For now, if Gemini says "last week" or gives a date, we could try to parse it.
+            // This is a placeholder for more advanced date filtering.
+        }
+
+        const files = await qb.orderBy('f.createdAt', 'DESC').take(10).getMany();
+
+        if (files.length === 0) {
             await this.messaging.sendText(
                 `whatsapp:${user.phone}`,
-                `I didn't understand that. Type *help* to see available commands, or forward a file to back it up! 😊`,
+                `📭 I couldn't find any files matching "${filters.tag || 'your request'}".`,
             );
+            return;
+        }
+
+        await this.messaging.sendText(
+            `whatsapp:${user.phone}`,
+            `📂 Found ${files.length} matching file${files.length > 1 ? 's' : ''}...`,
+        );
+
+        for (const file of files) {
+            const url = await this.mediaService.getPresignedUrl(file);
+            const date = file.createdAt.toLocaleDateString('en-GB');
+            const sizeKb = (Number(file.fileSize) / 1024).toFixed(1);
+            const caption = `📄 ${file.originalFilename}\n✨ ${file.caption || 'No caption'}\n📅 ${date} · 💾 ${sizeKb} KB`;
+            await this.messaging.sendMedia(`whatsapp:${user.phone}`, url, caption);
         }
     }
 
