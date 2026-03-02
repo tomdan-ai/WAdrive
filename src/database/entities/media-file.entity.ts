@@ -45,6 +45,18 @@ export class MediaFile {
     @Column()
     checksum: string;
 
+    /** AI-generated tags */
+    @Column('text', { array: true, nullable: true })
+    tags: string[];
+
+    /** AI-generated caption or summary */
+    @Column({ type: 'text', nullable: true })
+    caption: string;
+
+    /** Extracted text from OCR */
+    @Column({ type: 'text', nullable: true })
+    extractedText: string;
+
     @CreateDateColumn()
     createdAt: Date;
 }
