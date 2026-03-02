@@ -34,6 +34,14 @@ export class User {
     @Column({ default: false })
     awaitingDeleteConfirmation: boolean;
 
+    /** Subscription status */
+    @Column({ default: false })
+    isPro: boolean;
+
+    /** When the pro subscription expires */
+    @Column({ type: 'timestamp', nullable: true })
+    proExpiresAt: Date;
+
     @CreateDateColumn()
     createdAt: Date;
 
