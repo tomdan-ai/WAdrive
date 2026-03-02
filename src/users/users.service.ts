@@ -18,7 +18,10 @@ export class UsersService {
      */
     async findOrCreate(phone: string): Promise<{ user: User; isNew: boolean }> {
         let user = await this.userRepo.findOne({ where: { phone } });
-        if (user) return { user, isNew: false };
+        if (user) {
+            user = await this.checkProStatus(user);
+            return { user, isNew: false };
+        }
 
         const freeTierBytes = this.config.get<number>('storage.freeTierBytes') ?? 524288000;
         user = this.userRepo.create({ phone, storageLimit: freeTierBytes });
@@ -31,7 +34,38 @@ export class UsersService {
     }
 
     async findByPhone(phone: string): Promise<User | null> {
-        return this.userRepo.findOne({ where: { phone } });
+        const user = await this.userRepo.findOne({ where: { phone } });
+        if (user) {
+            return this.checkProStatus(user);
+        }
+        return null;
+    }
+
+    /**
+     * Checks if Pro status has expired and updates the user accordingly.
+     */
+    async checkProStatus(user: User): Promise<User> {
+        if (user.isPro && user.proExpiresAt && user.proExpiresAt < new Date()) {
+            user.isPro = false;
+            user.storageLimit = this.config.get<number>('storage.freeTierBytes') ?? 524288000;
+            return this.userRepo.save(user);
+        }
+        return user;
+    }
+
+    /**
+     * Upgrades a user to Pro for 30 days and sets limit to 10GB.
+     */
+    async upgradeToPro(user: User): Promise<User> {
+        const proTierBytes = 10 * 1024 * 1024 * 1024; // 10GB
+        const expiration = new Date();
+        expiration.setDate(expiration.getDate() + 30); // 30 days
+
+        user.isPro = true;
+        user.proExpiresAt = expiration;
+        user.storageLimit = proTierBytes;
+
+        return this.userRepo.save(user);
     }
 
     async deleteUser(user: User): Promise<void> {
