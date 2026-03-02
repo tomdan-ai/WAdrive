@@ -5,6 +5,7 @@ import configuration from './config/configuration';
 import { User } from './database/entities/user.entity';
 import { MediaFile } from './database/entities/media-file.entity';
 import { WebhookModule } from './webhook/webhook.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { WebhookModule } from './webhook/webhook.module';
     }),
 
     WebhookModule,
+    PaymentsModule,
   ],
 })
 export class AppModule { }
