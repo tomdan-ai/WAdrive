@@ -12,7 +12,7 @@ import { WebhookService } from './webhook.service';
 export class WebhookController {
     private readonly logger = new Logger(WebhookController.name);
 
-    constructor(private readonly webhookService: WebhookService) { }
+    constructor(private readonly webhookService: WebhookService) { 
 
     /**
      * POST /webhook
